@@ -1,0 +1,35 @@
+name: Build MX Bikes RAM Limiter Plugin
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Compile plugin
+        run: |
+          cl /D_USRDLL /D_WINDLL /LD /Fe: ram_limiter.dll src/ram_limiter.cpp
+          ren ram_limiter.dll ram_limiter.dlo
+
+      - name: Create config.ini
+        run: |
+          echo "limit = 1" > config.ini
+          echo "max = 1024" >> config.ini
+
+      - name: Prepare release package
+        run: |
+          mkdir release
+          copy ram_limiter.dlo release\
+          copy config.ini release\
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ram-limiter-plugin
+          path: release/
