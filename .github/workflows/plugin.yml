@@ -17,7 +17,7 @@ jobs:
 
       - name: Compile plugin
         run: |
-          cl /D_USRDLL /D_WINDLL /LD /Fe: ram_limiter.dll src/ram_limiter.cpp
+          cl /D_USRDLL /D_WINDLL /LD /EHsc /Fe: ram_limiter.dll src/ram_limiter.cpp user32.lib
           ren ram_limiter.dll ram_limiter.dlo
 
       - name: Create config.ini
