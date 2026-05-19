@@ -15,6 +15,11 @@ int ReadConfigInt(const std::string& filename, const std::string& key, int defau
         if (eq != std::string::npos) {
             std::string k = line.substr(0, eq);
             std::string v = line.substr(eq + 1);
+            // trim spaces (simple)
+            k.erase(0, k.find_first_not_of(" \t"));
+            k.erase(k.find_last_not_of(" \t") + 1);
+            v.erase(0, v.find_first_not_of(" \t"));
+            v.erase(v.find_last_not_of(" \t") + 1);
             if (k == key) {
                 return std::stoi(v);
             }
@@ -75,7 +80,7 @@ extern "C" __declspec(dllexport) void InitializePlugin() {
     MessageBoxA(NULL, msg, "RAM Limiter", MB_OK);
 }
 
-// Optional: DLL entry point (not strictly needed for MX Bikes plugins)
+// Optional: DLL entry point
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
     return TRUE;
 }
