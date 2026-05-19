@@ -12,6 +12,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up MSVC compiler
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: Compile plugin
         run: |
           cl /D_USRDLL /D_WINDLL /LD /Fe: ram_limiter.dll src/ram_limiter.cpp
