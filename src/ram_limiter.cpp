@@ -1,10 +1,8 @@
-// ram_limiter.cpp - MX Bikes RAM limiter plugin
+// ram_limiter.cpp – MX Bikes RAM limiter plugin
 #include <windows.h>
 #include <stdio.h>
 #include <string>
 #include <fstream>
-#include <sstream>
-#include <memory>
 
 int ReadConfigInt(const std::string& filename, const std::string& key, int default_value) {
     std::ifstream file(filename);
@@ -30,22 +28,20 @@ extern "C" __declspec(dllexport) void InitializePlugin() {
     GetModuleFileNameA(GetModuleHandleA("ram_limiter.dlo"), dllPath, MAX_PATH);
     std::string iniPath = std::string(dllPath);
     size_t lastSlash = iniPath.find_last_of("\\/");
-    if (lastSlash != std::string::npos) {
+    if (lastSlash != std::string::npos)
         iniPath = iniPath.substr(0, lastSlash + 1) + "config.ini";
-    } else {
+    else
         iniPath = "config.ini";
-    }
 
     bool enabled = (ReadConfigInt(iniPath, "limit", 1) == 1);
     int maxMB = ReadConfigInt(iniPath, "max", 1024);
-    bool strict = (ReadConfigInt(iniPath, "strict", 1) == 1); // new option
 
     if (!enabled) {
         MessageBoxA(NULL, "RAM Limiter plugin loaded but disabled in config.ini", "RAM Limiter", MB_OK);
         return;
     }
 
-    // --- Method 1: Job Object (hard limit) ---
+    // Try to create a job object with a hard memory limit
     HANDLE hJob = CreateJobObject(NULL, NULL);
     if (!hJob) {
         MessageBoxA(NULL, "Failed to create job object", "RAM Limiter Error", MB_OK);
@@ -62,32 +58,29 @@ extern "C" __declspec(dllexport) void InitializePlugin() {
     }
 
     // Try to assign the current process to the job
-    BOOL assigned = AssignProcessToJobObject(hJob, GetCurrentProcess());
-    if (!assigned) {
-        // Process might already be in a job; we can't remove it. Show warning and use fallback.
+    if (!AssignProcessToJobObject(hJob, GetCurrentProcess())) {
         DWORD err = GetLastError();
-        char msg[512];
-        sprintf_s(msg, "Warning: Could not assign process to job object (error %d).\n"
-                      "The memory limit may not be enforced.\n"
-                      "Using working set fallback.", err);
-        MessageBoxA(NULL, msg, "RAM Limiter", MB_OK);
-
-        // Fallback: set working set size (soft limit)
-        SIZE_T min = 0, max = (SIZE_T)maxMB * 1024 * 1024;
-        if (!SetProcessWorkingSetSize(GetCurrentProcess(), min, max)) {
-            MessageBoxA(NULL, "Failed to set working set size", "RAM Limiter Error", MB_OK);
+        if (err == 87) { // ERROR_INVALID_PARAMETER – usually means process already in a job
+            char msg[512];
+            sprintf_s(msg, "Cannot enforce hard memory limit because the process is already in a job.\n\n"
+                           "Please use the following workaround in your Winlator container:\n"
+                           "  ulimit -v %d\n\n"
+                           "This will set a hard virtual memory limit at the Linux level.", maxMB * 1024);
+            MessageBoxA(NULL, msg, "RAM Limiter – Use ulimit instead", MB_OK);
         } else {
-            MessageBoxA(NULL, "Working set limit applied (soft limit).", "RAM Limiter", MB_OK);
+            char msg[256];
+            sprintf_s(msg, "Failed to assign process to job object (error %d).", err);
+            MessageBoxA(NULL, msg, "RAM Limiter Error", MB_OK);
         }
         CloseHandle(hJob);
         return;
     }
 
-    // Success
+    // Success – hard limit active
     char msg[256];
-    sprintf_s(msg, "RAM Limiter active: %d MB hard limit (Job Object).", maxMB);
+    sprintf_s(msg, "RAM Limiter active: %d MB hard limit.\nThe game will crash if it exceeds this limit.", maxMB);
     MessageBoxA(NULL, msg, "RAM Limiter", MB_OK);
-    // Keep the job object handle open (it will be closed when process exits)
+    // Keep job object handle alive (will close when process exits)
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
